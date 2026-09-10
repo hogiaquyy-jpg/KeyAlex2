@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Quản trị License Key</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #262a34;
+    --text: #e8e9ec;
+    --muted: #8b8f9a;
+    --accent: #6c8cff;
+    --danger: #ff6c6c;
+    --ok: #4caf7d;
+    --warning: #ffb74d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); padding: 32px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px;
+  }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
+  input, select {
+    width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: #0f1115; color: var(--text); font-size: 13px;
+  }
+  button {
+    margin-top: 16px; width: 100%; padding: 10px; border-radius: 6px; border: none;
+    background: var(--accent); color: white; font-weight: 600; cursor: pointer; font-size: 13px;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button.danger { background: var(--danger); color: #fff; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  .key { font-family: ui-monospace, monospace; font-size: 11px; }
+  .badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; }
+  .badge.active { background: rgba(76,175,125,0.15); color: var(--ok); }
+  .badge.revoked { background: rgba(255,108,108,0.15); color: var(--danger); }
+  .result { margin-top: 14px; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--ok); }
+  .row-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+  .row-actions button { width: auto; margin: 0; padding: 4px 8px; font-size: 11px; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+  .toolbar input { flex: 1; }
+  .toolbar button { width: auto; margin: 0; padding: 8px 16px; }
+</style>
+</head>
+<body>
+
+<h1>Quản trị License Key</h1>
+<div class="sub">Nhập admin key để bắt đầu quản lý.</div>
+
+<div class="grid">
+  <div class="panel">
+    <label>Admin Key (X-Admin-Key)</label>
+    <input id="adminKey" type="password" placeholder="admin secret của bạn">
+
+    <hr style="border-color: var(--border); margin: 20px 0;">
+
+    <div style="font-weight:600; margin-bottom:4px;">Tạo key mới</div>
+
+    <label>Tên sản phẩm</label>
+    <input id="productName" placeholder="vd: MyApp Pro">
+
+    <label>Số lượng</label>
+    <input id="quantity" type="number" value="1" min="1" max="1000">
+
+    <label>Số lần kích hoạt tối đa / key</label>
+    <input id="maxActivations" type="number" value="1" min="1">
+
+    <label>Hết hạn sau (ngày, để trống = vĩnh viễn)</label>
+    <input id="expiresInDays" type="number" placeholder="vd: 365">
+
+    <label>Tiền tố key (tuỳ chọn)</label>
+    <input id="prefix" placeholder="vd: PRO">
+
+    <label>Email khách hàng (tuỳ chọn)</label>
+    <input id="customerEmail" type="email">
+
+    <label>Ghi chú (tuỳ chọn)</label>
+    <input id="note">
+
+    <button onclick="generateKeys()">Tạo key</button>
+    <div id="genResult" class="result"></div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <input id="filterProduct" placeholder="Lọc theo sản phẩm...">
+      <button class="secondary" onclick="loadKeys()">Tải lại</button>
+      <button class="secondary" onclick="exportBackup()">⬇ Backup</button>
+      <button class="secondary" onclick="document.getElementById('importFile').click()">⬆ Khôi phục</button>
+      <input id="importFile" type="file" accept=".json" style="display:none" onchange="importBackup(this)">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Key</th><th>Sản phẩm</th><th>Trạng thái</th><th>Kích hoạt</th><th>Hết hạn</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="keysBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function adminHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "X-Admin-Key": document.getElementById("adminKey").value
+  };
+}
+
+async function generateKeys() {
+  const body = {
+    quantity: parseInt(document.getElementById("quantity").value || "1"),
+    product_name: document.getElementById("productName").value,
+    max_activations: parseInt(document.getElementById("maxActivations").value || "1"),
+    expires_in_days: document.getElementById("expiresInDays").value ? parseInt(document.getElementById("expiresInDays").value) : null,
+    prefix: document.getElementById("prefix").value,
+    customer_email: document.getElementById("customerEmail").value || null,
+    note: document.getElementById("note").value || null
+  };
+  const res = await fetch("/admin/generate-keys", {
+    method: "POST", headers: adminHeaders(), body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  const box = document.getElementById("genResult");
+  if (!res.ok) {
+    box.style.color = "var(--danger)";
+    box.textContent = "Lỗi: " + (data.detail || JSON.stringify(data));
+    return;
+  }
+  box.style.color = "var(--ok)";
+  box.textContent = "Đã tạo " + data.created + " key:\n" + data.keys.join("\n");
+  loadKeys();
+}
+
+async function loadKeys() {
+  const product = document.getElementById("filterProduct").value;
+  const url = "/admin/keys" + (product ? "?product_name=" + encodeURIComponent(product) : "");
+  const res = await fetch(url, { headers: adminHeaders() });
+  const body = document.getElementById("keysBody");
+  if (!res.ok) {
+    body.innerHTML = "<tr><td colspan=6>Nhập admin key hợp lệ để xem danh sách.</td></tr>";
+    return;
+  }
+  const rows = await res.json();
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td class="key">${r.license_key}</td>
+      <td>${r.product_name}</td>
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+      <td>${r.activations_used}/${r.max_activations}</td>
+      <td>${r.expires_at ? r.expires_at.split("T")[0] : "—"}</td>
+      <td class="row-actions">
+        ${r.status === "active"
+          ? `<button onclick="revoke('${r.license_key}')">Thu hồi</button>`
+          : `<button onclick="reactivate('${r.license_key}')">Kích hoạt lại</button>`}
+        <button class="danger" onclick="deleteKey('${r.license_key}')" style="background:var(--danger);color:#fff;">Xóa</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+// ===== BACKUP: TẢI TOÀN BỘ KEY VỀ FILE =====
+async function exportBackup() {
+  const res = await fetch("/admin/export", { headers: adminHeaders() });
+  if (!res.ok) {
+    alert("❌ Lỗi: nhập admin key hợp lệ trước khi backup!");
+    return;
+  }
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "licenses-backup-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ===== KHÔI PHỤC TỪ FILE BACKUP =====
+async function importBackup(input) {
+  if (!input.files.length) return;
+  const text = await input.files[0].text();
+  input.value = "";
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { alert("❌ File không phải JSON backup hợp lệ!"); return; }
+  if (!confirm(`Khôi phục ${data.licenses ? data.licenses.length : 0} key từ file? (key đã có sẽ được bỏ qua)`)) return;
+  const res = await fetch("/admin/import", {
+    method: "POST", headers: adminHeaders(), body: JSON.stringify(data)
+  });
+  const out = await res.json();
+  if (!res.ok) { alert("❌ Lỗi: " + (out.detail || JSON.stringify(out))); return; }
+  alert(`✅ Đã khôi phục ${out.imported_licenses} key, ${out.imported_activations} lượt kích hoạt!`);
+  loadKeys();
+}
+
+// ===== THÊM HÀM XÓA KEY =====
+async function deleteKey(key) {
+  if (!confirm(`Bạn có chắc muốn XÓA VĨNH VIỄN key:\n${key}?`)) {
+    return;
+  }
+  
+  const res = await fetch("/admin/keys/" + key, {
+    method: "DELETE",
+    headers: adminHeaders()
+  });
+  
+  if (res.ok) {
+    alert("✅ Đã xóa key thành công!");
+    loadKeys();
+  } else {
+    const data = await res.json();
+    alert("❌ Lỗi: " + (data.detail || "Không thể xóa key!"));
+  }
+}
+
+async function revoke(key) {
+  await fetch("/admin/revoke", { method: "POST", headers: adminHeaders(), body: JSON.stringify({ license_key: key }) });
+  loadKeys();
+}
+
+async function reactivate(key) {
+  await fetch("/admin/reactivate", { method: "POST", headers: adminHeaders(), body: JSON.stringify({ license_key: key }) });
+  loadKeys();
+}
+
+document.getElementById("adminKey").addEventListener("change", loadKeys);
+</script>
+
+</body>
+</html>
