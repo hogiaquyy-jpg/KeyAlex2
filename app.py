@@ -32,14 +32,22 @@ app.add_middleware(NgrokSkipWarningMiddleware)
 # ============================================================
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "30012012")
 
-# Khởi tạo database
-init_db()
+# Khởi tạo database (không để crash lúc import nếu DB lag lúc cold start)
+try:
+    init_db()
+except Exception as e:
+    print(f"WARNING: init_db failed at startup: {e}", flush=True)
 
 ADMIN_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin.html")
 
 # ============================================================
 # ROUTES
 # ============================================================
+@app.get("/health")
+def health():
+    """Health-check nhẹ cho Render + UptimeRobot (không chạm DB)."""
+    return {"status": "ok"}
+
 @app.get("/")
 def root():
     """Trang chủ - đọc file admin.html trực tiếp"""
