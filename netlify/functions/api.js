@@ -1,6 +1,6 @@
 // Netlify Function proxy: trinh duyet goi cung origin -> het loi CORS.
 // Chuyen tiep moi request sang API key server that.
-const BASE = "https://keyalex2.onrender.com/api/v1";
+const BASE = "https://keyalex2.onrender.com";
 
 exports.handler = async function (event) {
   const prefix = "/.netlify/functions/api";
