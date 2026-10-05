@@ -24,7 +24,7 @@
 
 <div class="card">
   <label>API (de trong = dung chung trang web, khuyen dung)</label>
-  <input id="api" value="/.netlify/functions/api">
+  <input id="api" value="/api">
   <label>Admin username</label>
   <input id="user" placeholder="admin">
   <label>Admin password</label>
@@ -57,7 +57,7 @@ let token = "";
 const $ = id => document.getElementById(id);
 function base() {
   const v = $("api").value.trim();
-  return v === "" ? "/.netlify/functions/api" : v.replace(/\/$/, "");
+  return v === "" ? "/api" : v.replace(/\/$/, "");
 }
 function headers() {
   const h = { "Content-Type": "application/json" };
