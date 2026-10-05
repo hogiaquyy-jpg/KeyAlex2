@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>KeyAlex2 - Tao key</title>
+<style>
+  body { font-family: Segoe UI, Arial; background: #101014; color: #eee; max-width: 640px; margin: 30px auto; padding: 0 16px; }
+  h2 { color: #fff; }
+  .card { background: #181822; border: 1px solid #2c2c38; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; margin: 8px 0 4px; color: #a0a0b0; font-size: 14px; }
+  input { width: 100%; box-sizing: border-box; padding: 9px; border-radius: 6px; border: 1px solid #3a3a48; background: #0c0c10; color: #fff; }
+  button { margin-top: 12px; padding: 10px 18px; border: 0; border-radius: 8px; background: #3c50b4; color: #fff; font-size: 15px; cursor: pointer; }
+  button:hover { background: #4a5fd0; }
+  #result { word-break: break-all; }
+  .key { font-size: 20px; color: #7dff9b; font-weight: bold; }
+  .err { color: #ff8080; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { border-bottom: 1px solid #2c2c38; padding: 6px; text-align: left; }
+  .hint { color: #88889a; font-size: 13px; }
+</style>
+</head>
+<body>
+<h2>KeyAlex2 - Admin tao key</h2>
+
+<div class="card">
+  <label>API (de trong = dung chung trang web, khuyen dung)</label>
+  <input id="api" value="/.netlify/functions/api">
+  <label>Admin username</label>
+  <input id="user" placeholder="admin">
+  <label>Admin password</label>
+  <input id="pass" type="password" placeholder="mat khau">
+  <label>Admin Key (X-Admin-Key, neu server doi)</label>
+  <input id="adminkey" placeholder="bo trong neu khong co">
+  <button onclick="doLogin()">Dang nhap</button>
+  <span id="loginState" class="hint"></span>
+</div>
+
+<div class="card">
+  <h3>Tao key moi</h3>
+  <label>Product ID</label>
+  <input id="product" value="1">
+  <label>User ID</label>
+  <input id="uid" value="1">
+  <label>Username (ten khach)</label>
+  <input id="cname" placeholder="ten_khach">
+  <button onclick="doCreate()">Tao key</button>
+  <div id="result" style="margin-top:12px"></div>
+</div>
+
+<div class="card">
+  <h3>Keys hien co <button onclick="doList()" style="margin:0;padding:6px 12px;font-size:13px">Tai lai</button></h3>
+  <div id="keys"></div>
+</div>
+
+<script>
+let token = "";
+const $ = id => document.getElementById(id);
+function base() {
+  const v = $("api").value.trim();
+  return v === "" ? "/.netlify/functions/api" : v.replace(/\/$/, "");
+}
+function headers() {
+  const h = { "Content-Type": "application/json" };
+  if (token) h["Authorization"] = "Bearer " + token;
+  const ak = $("adminkey").value.trim();
+  if (ak) h["X-Admin-Key"] = ak;
+  return h;
+}
+async function doLogin() {
+  $("loginState").textContent = "...";
+  try {
+    const r = await fetch(base() + "/auth/login", {
+      method: "POST", headers: headers(),
+      body: JSON.stringify({ username: $("user").value, password: $("pass").value })
+    });
+    const j = await r.json();
+    if (j.success) {
+      token = j.token || "";
+      $("loginState").textContent = "Dang nhap OK (" + ((j.user && j.user.username) || $("user").value) + ")";
+    } else {
+      $("loginState").textContent = "That bai: " + (j.message || r.status);
+    }
+  } catch (e) { $("loginState").textContent = "Loi ket noi: " + e.message; }
+}
+async function doCreate() {
+  $("result").innerHTML = "...";
+  try {
+    const r = await fetch(base() + "/keys/create", {
+      method: "POST", headers: headers(),
+      body: JSON.stringify({
+        product_id: parseInt($("product").value),
+        user_id: parseInt($("uid").value),
+        username: $("cname").value
+      })
+    });
+    const j = await r.json();
+    if (j.success) {
+      $("result").innerHTML = '<div>Key moi:</div><div class="key">' + j.key + "</div>"
+        + "<div>HSD: " + (j.expires || "?") + "</div>"
+        + '<button onclick="copyKey(\'' + j.key + '\')">Copy key</button>';
+    } else {
+      $("result").innerHTML = '<span class="err">That bai: ' + (j.message || r.status) + "</span>";
+    }
+  } catch (e) { $("result").innerHTML = '<span class="err">Loi ket noi: ' + e.message + "</span>"; }
+}
+function copyKey(k) { navigator.clipboard.writeText(k); alert("Da copy key"); }
+async function doList() {
+  $("keys").textContent = "...";
+  try {
+    const r = await fetch(base() + "/keys", { headers: headers() });
+    const j = await r.json();
+    const arr = Array.isArray(j) ? j : (j.keys || j.data || []);
+    if (!arr.length) { $("keys").textContent = "(trong)"; return; }
+    let h = "<table><tr><th>Key</th><th>Het han</th></tr>";
+    for (const k of arr) h += "<tr><td>" + (k.key || k.code || JSON.stringify(k)) + "</td><td>" + (k.expires || k.expire || "") + "</td></tr>";
+    $("keys").innerHTML = h + "</table>";
+  } catch (e) { $("keys").textContent = "Loi: " + e.message; }
+}
+</script>
+</body>
+</html>
